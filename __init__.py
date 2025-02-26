@@ -1,3 +1,5 @@
+import os
+import logging
 from flask import Flask
 from flask_pymongo import PyMongo
 from flask_mail import Mail
@@ -18,21 +20,25 @@ def create_app():
     mongo.init_app(app)
     mail.init_app(app)
 
-    # Import and register blueprints
-    try:
-        from app.routes.auth import bp as auth_bp
-        from app.routes.admin import bp as admin_bp
-        from app.routes.user import bp as user_bp
-        from app.routes.main import bp as main_bp
-        from app.routes.file_management import bp as file_management_bp
+    # Setup logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
-        app.register_blueprint(auth_bp, url_prefix='/auth')
-        app.register_blueprint(admin_bp, url_prefix='/admin')
-        app.register_blueprint(user_bp, url_prefix='/user')
-        app.register_blueprint(main_bp, url_prefix='/')
-        app.register_blueprint(file_management_bp, url_prefix='/files')
+    # Import and register blueprints dynamically
+    blueprint_modules = [
+        ("app.routes.auth", "auth_bp", "/auth"),
+        ("app.routes.admin", "admin_bp", "/admin"),
+        ("app.routes.user", "user_bp", "/user"),
+        ("app.routes.main", "main_bp", "/"),
+        ("app.routes.file_management", "file_management_bp", "/files"),
+    ]
 
-    except ImportError as e:
-        print(f"Error importing blueprints: {e}")
+    for module, bp_name, url_prefix in blueprint_modules:
+        try:
+            blueprint = __import__(module, fromlist=[bp_name])
+            app.register_blueprint(getattr(blueprint, bp_name), url_prefix=url_prefix)
+            logger.info(f"Registered blueprint: {bp_name} at {url_prefix}")
+        except (ImportError, AttributeError) as e:
+            logger.error(f"Failed to register blueprint {bp_name}: {e}")
 
     return app
